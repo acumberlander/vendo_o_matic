@@ -107,6 +107,46 @@ def get_single_drink_name(id):
     rv = str(cur.fetchall()[0]['name'])
     return rv
 
+def set_coins_to_zero():
+    cur = mysql.connection.cursor()
+    cur.execute(
+        '''
+        UPDATE temp_coin_quantity
+        SET temp_coins = {0}
+        Where id = 1
+        '''.format('0'))
+    mysql.connection.commit()
+
+def return_change():
+    coins = int(check_coins())
+    if coins > 2:
+        change_to_return = coins - 2
+        for _ in range(change_to_return):
+            return_one_coin()
+        set_coins_to_zero()
+        return change_to_return
+
+
+def get_vm_coins():
+    cur = mysql.connection.cursor()
+    cur.execute(
+        '''
+        SELECT coin_quantity
+        FROM vending_machine
+        ''')
+    rv = str(cur.fetchall()[0]['coin_quantity'])
+    return rv
+
+def add_coins_to_vm():
+    cur = mysql.connection.cursor()
+    coins = int(get_vm_coins()) + 2
+    cur.execute(
+        '''
+        UPDATE Vending_Machine
+        SET coin_quantity = {0}
+        Where id = 1
+        '''.format(coins))
+
 # Decrements drink quantity by 1 based on drink id.
 @app.route('/inventory/<id>', methods=['PUT'])
 def update_inventory(id):
@@ -129,7 +169,7 @@ def update_inventory(id):
 
     if soda_count < 1:
         abort(404, 'Sorry, but {0} is sold out!'.format(soda_name))
-        
+
     new_soda_count = soda_count - 1
     cur.execute(
         '''
@@ -137,9 +177,10 @@ def update_inventory(id):
         SET Quantity = {0}
         WHERE id = {1}
         '''.format(new_soda_count, id))
+    add_coins_to_vm()
     mysql.connection.commit()
     rv = jsonify(cur.fetchall())
-    rv.headers.set('X-Coins', coins)
+    rv.headers.set('Coins Returned', return_change())
     return rv
 
 if __name__ == '__main__':
